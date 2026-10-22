@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Modern Bright Auditorium VR Experience - On Stage</title>
+  <!-- A-Frame WebXR Library -->
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* VR HUD / Instruction Overlay */
+    #hud-overlay {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(12px);
+      color: #f8fafc;
+      padding: 16px 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      z-index: 9999;
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 350px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+      user-select: none;
+      transition: opacity 0.3s ease;
+    }
+
+    #hud-overlay h2 {
+      margin: 0 0 6px 0;
+      font-size: 17px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #hud-overlay .badge {
+      background: #0284c7;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    #hud-overlay ul {
+      margin: 6px 0 10px 0;
+      padding-left: 18px;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    #hud-overlay li {
+      margin-bottom: 3px;
+    }
+
+    /* Voice / Pitch Visualizer Panel */
+    #voice-meter-card {
+      background: rgba(10, 15, 29, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+
+    .voice-meter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .pitch-badge {
+      font-family: monospace;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .level-bar-track {
+      width: 100%;
+      height: 12px;
+      background: #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .level-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #10b981 0%, #38bdf8 55%, #f59e0b 80%, #ef4444 100%);
+      transition: width 0.05s ease-out;
+      border-radius: 6px;
+    }
+
+    .voice-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .btn-hud {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      text-align: center;
+    }
+
+    .btn-hud:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+
+    .btn-hud.active {
+      background: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-hud.listening {
+      background: #8b5cf6;
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+      animation: pulse-mic 1.5s infinite;
+    }
+
+    @keyframes pulse-mic {
+      0% { opacity: 1; }
+      50% { opacity: 0.8; }
+      100% { opacity: 1; }
+    }
+
+    .btn-hud.secondary {
+      background: rgba(255, 255, 255, 0.16);
+      color: #f1f5f9;
+    }
+
+    .btn-hud.secondary:hover {
+      background: rgba(255, 255, 255, 0.26);
+    }
+
+    .sound-status {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sound-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+      display: inline-block;
+      transition: background 0.3s;
+    }
+
+    .sound-dot.active {
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+
+    /* VR Mode Banner */
+    #vr-prompt {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 999;
+      letter-spacing: 0.3px;
+    }
+  </style>
+
+  <script>
+    // ==========================================
+    // CROWD AUDIO ENGINE: AMBIENT CHATTER & APPLAUSE
+    // ==========================================
+    class CrowdAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.isMurmurPlaying = false;
+        this.murmurGain = null;
+        this.murmurSource = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      // 1. Ambient Crowd Chatter / Room Murmur (Continuous seamless stereo loop)
+      startCrowdMurmur() {
+        this.init();
+        if (this.isMurmurPlaying) return;
+        this.isMurmurPlaying = true;
+        const ctx = this.ctx;
+
+        this.murmurGain = ctx.createGain();
+        this.murmurGain.gain.setValueAtTime(0.001, ctx.currentTime);
+        this.murmurGain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 1.2);
+        this.murmurGain.connect(ctx.destination);
+
+        const bufferDuration = 6.0;
+        const bufferSize = Math.floor(ctx.sampleRate * bufferDuration);
+        const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+        const leftData = buffer.getChannelData(0);
+        const rightData = buffer.getChannelData(1);
+
+        let pinkL = 0, pinkR = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const t = i / ctx.sampleRate;
+          const whiteL = Math.random() * 2 - 1;
+          const whiteR = Math.random() * 2 - 1;
+
+          pinkL = (pinkL + 0.035 * whiteL) / 1.035;
+          pinkR = (pinkR + 0.035 * whiteR) / 1.035;
+
+          const babbleModL = (Math.sin(t * 3.4) * Math.sin(t * 8.2) * 0.35 + 0.65) *
+                             (Math.sin(t * 1.5 + 0.4) * 0.3 + 0.7);
+          const babbleModR = (Math.cos(t * 3.1) * Math.sin(t * 7.8) * 0.35 + 0.65) *
+                             (Math.cos(t * 1.7 + 1.1) * 0.3 + 0.7);
+
+          const voiceL = (Math.random() < 0.03) ? (Math.random() * 0.9) : 0.12;
+          const voiceR = (Math.random() < 0.03) ? (Math.random() * 0.9) : 0.12;
+
+          leftData[i] = (pinkL * 0.4 + whiteL * voiceL * 0.2) * babbleModL;
+          rightData[i] = (pinkR * 0.4 + whiteR * voiceR * 0.2) * babbleModR;
+        }
+
+        const formantFilter = ctx.createBiquadFilter();
+        formantFilter.type = 'bandpass';
+        formantFilter.frequency.setValueAtTime(750, ctx.currentTime);
+        formantFilter.Q.setValueAtTime(1.4, ctx.currentTime);
+
+        const presenceFilter = ctx.createBiquadFilter();
+        presenceFilter.type = 'lowpass';
+        presenceFilter.frequency.setValueAtTime(2200, ctx.currentTime);
+
+        this.murmurSource = ctx.createBufferSource();
+        this.murmurSource.buffer = buffer;
+        this.murmurSource.loop = true;
+
+        this.murmurSource.connect(formantFilter);
+        formantFilter.connect(presenceFilter);
+        presenceFilter.connect(this.murmurGain);
+
+        this.murmurSource.start();
+        updateAudioUI(true);
+      }
+
+      stopCrowdMurmur() {
+        if (!this.isMurmurPlaying || !this.ctx) return;
+        this.isMurmurPlaying = false;
+        if (this.murmurGain) {
+          this.murmurGain.gain.setValueAtTime(this.murmurGain.gain.value, this.ctx.currentTime);
+          this.murmurGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.8);
+          setTimeout(() => {
+            if (this.murmurSource) {
+              try { this.murmurSource.stop(); this.murmurSource.disconnect(); } catch(e){}
+            }
+          }, 850);
+        }
+        updateAudioUI(false);
+      }
+
+      toggleCrowdMurmur() {
+        if (this.isMurmurPlaying) {
+          this.stopCrowdMurmur();
+          return false;
+        } else {
+          this.startCrowdMurmur();
+          return true;
+        }
+      }
+
+      // 2. High-Impact Stereo Audience Applause & Cheering
+      playApplause(durationSeconds = 5.6) {
+        this.init();
+        const ctx = this.ctx;
+        const now = ctx.currentTime;
+
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0.001, now);
+        masterGain.gain.exponentialRampToValueAtTime(0.9, now + 0.5);
+        masterGain.gain.setValueAtTime(0.85, now + durationSeconds - 1.5);
+        masterGain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
+        masterGain.connect(ctx.destination);
+
+        // LAYER 1: Stereo Dense Clapping
+        const clapBufferSize = Math.floor(ctx.sampleRate * durationSeconds);
+        const clapBuffer = ctx.createBuffer(2, clapBufferSize, ctx.sampleRate);
+        const leftData = clapBuffer.getChannelData(0);
+        const rightData = clapBuffer.getChannelData(1);
+
+        let lastL = 0.0, lastR = 0.0;
+        for (let i = 0; i < clapBufferSize; i++) {
+          const whiteL = Math.random() * 2 - 1;
+          const whiteR = Math.random() * 2 - 1;
+
+          lastL = (lastL + 0.03 * whiteL) / 1.03;
+          lastR = (lastR + 0.03 * whiteR) / 1.03;
+
+          const clapL = (Math.random() < 0.045) ? (Math.random() * 3.4) : 0.18;
+          const clapR = (Math.random() < 0.045) ? (Math.random() * 3.4) : 0.18;
+
+          leftData[i] = (lastL * 0.4 + whiteL * 0.22) * clapL;
+          rightData[i] = (lastR * 0.4 + whiteR * 0.22) * clapR;
+        }
+
+        const clapFilter = ctx.createBiquadFilter();
+        clapFilter.type = 'bandpass';
+        clapFilter.frequency.setValueAtTime(1450, now);
+        clapFilter.Q.setValueAtTime(1.5, now);
+
+        const clapSource = ctx.createBufferSource();
+        clapSource.buffer = clapBuffer;
+        clapSource.connect(clapFilter);
+        clapFilter.connect(masterGain);
+        clapSource.start(now);
+        clapSource.stop(now + durationSeconds);
+
+        // LAYER 2: Vocal Cheers & Crowd Roar
+        const cheerBuffer = ctx.createBuffer(1, clapBufferSize, ctx.sampleRate);
+        const cheerData = cheerBuffer.getChannelData(0);
+        for (let i = 0; i < clapBufferSize; i++) {
+          cheerData[i] = Math.random() * 2 - 1;
+        }
+
+        const cheerFilter = ctx.createBiquadFilter();
+        cheerFilter.type = 'bandpass';
+        cheerFilter.Q.setValueAtTime(3.4, now);
+        cheerFilter.frequency.setValueAtTime(440, now);
+        cheerFilter.frequency.exponentialRampToValueAtTime(920, now + 1.2);
+        cheerFilter.frequency.exponentialRampToValueAtTime(640, now + durationSeconds - 1.4);
+
+        const cheerGain = ctx.createGain();
+        cheerGain.gain.setValueAtTime(0.001, now);
+        cheerGain.gain.exponentialRampToValueAtTime(0.48, now + 0.8);
+        cheerGain.gain.exponentialRampToValueAtTime(0.001, now + durationSeconds);
+
+        const cheerSource = ctx.createBufferSource();
+        cheerSource.buffer = cheerBuffer;
+        cheerSource.connect(cheerFilter);
+        cheerFilter.connect(cheerGain);
+        cheerGain.connect(masterGain);
+        cheerSource.start(now);
+        cheerSource.stop(now + durationSeconds);
+      }
+    }
+
+    const crowdAudio = new CrowdAudioEngine();
+
+    // ==========================================
+    // MICROPHONE MANAGER: PITCH/VOLUME ANALYSER & "THANK YOU" DETECTOR
+    // ==========================================
+    class MicrophoneManager {
+      constructor() {
+        this.audioCtx = null;
+        this.analyser = null;
+        this.stream = null;
+        this.source = null;
+        this.isActive = false;
+        this.recognition = null;
+        this.lastThankYouTime = 0;
+        this.animId = null;
+      }
+
+      async toggle() {
+        if (this.isActive) {
+          this.stop();
+        } else {
+          await this.start();
+        }
+      }
+
+      async start() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          this.stream = stream;
+
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!this.audioCtx) this.audioCtx = new AudioContext();
+          if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
+
+          this.source = this.audioCtx.createMediaStreamSource(stream);
+          this.analyser = this.audioCtx.createAnalyser();
+          this.analyser.fftSize = 512;
+          this.analyser.smoothingTimeConstant = 0.65;
+
+          // Connect ONLY to analyser to prevent acoustic feedback loop!
+          this.source.connect(this.analyser);
+
+          this.isActive = true;
+          this.updateUI(true);
+          this.startAnalysis();
+          this.startSpeechRecognition();
+        } catch (err) {
+          console.warn("Microphone access error:", err);
+          alert("Microphone permission was not granted or microphone is unavailable.");
+          this.updateUI(false);
+        }
+      }
+
+      stop() {
+        this.isActive = false;
+        if (this.stream) {
+          this.stream.getTracks().forEach(t => t.stop());
+          this.stream = null;
+        }
+        if (this.recognition) {
+          try { this.recognition.stop(); } catch(e){}
+        }
+        if (this.animId) {
+          cancelAnimationFrame(this.animId);
+          this.animId = null;
+        }
+        this.updateUI(false);
+        this.resetVisualizers();
+      }
+
+      startAnalysis() {
+        const bufferLength = this.analyser.frequencyBinCount;
+        const timeData = new Uint8Array(bufferLength);
+        const freqData = new Uint8Array(bufferLength);
+
+        const analyze = () => {
+          if (!this.isActive) return;
+
+          // 1. Calculate Volume Level (RMS from time domain)
+          this.analyser.getByteTimeDomainData(timeData);
+          let sumSquares = 0.0;
+          for (let i = 0; i < bufferLength; i++) {
+            const norm = (timeData[i] - 128) / 128;
+            sumSquares += norm * norm;
+          }
+          const rms = Math.sqrt(sumSquares / bufferLength);
+          const volumePct = Math.min(100, Math.round(rms * 480));
+
+          // 2. Estimate Dominant Pitch (Frequency in Hz)
+          this.analyser.getByteFrequencyData(freqData);
+          let peakIdx = 0;
+          let peakVal = 0;
+          for (let i = 2; i < bufferLength / 2; i++) {
+            if (freqData[i] > peakVal) {
+              peakVal = freqData[i];
+              peakIdx = i;
+            }
+          }
+
+          let pitchHz = 0;
+          if (peakVal > 25 && volumePct > 4) {
+            pitchHz = Math.round(peakIdx * (this.audioCtx.sampleRate / this.analyser.fftSize));
+          }
+
+          this.renderVisualizers(volumePct, pitchHz);
+          this.animId = requestAnimationFrame(analyze);
+        };
+
+        this.animId = requestAnimationFrame(analyze);
+      }
+
+      renderVisualizers(volumePct, pitchHz) {
+        // 2D HUD Meter update
+        const levelBar = document.querySelector('#hud-level-bar');
+        const pitchText = document.querySelector('#hud-pitch-text');
+        if (levelBar) levelBar.style.width = `${volumePct}%`;
+        if (pitchText) {
+          pitchText.innerText = pitchHz > 0 ? `Pitch: ${pitchHz} Hz` : `Pitch: -- Hz`;
+        }
+
+        // 3D VR Podium Meter update
+        const podiumBar = document.querySelector('#podium-voice-bar');
+        const podiumPitch = document.querySelector('#podium-pitch-status');
+        if (podiumBar) {
+          const maxBarWidth = 0.74;
+          const currentWidth = Math.max(0.01, (volumePct / 100) * maxBarWidth);
+          podiumBar.setAttribute('width', currentWidth);
+          // Anchor bar to start from left (-0.37)
+          podiumBar.setAttribute('position', `${-0.37 + (currentWidth / 2)} 0.15 0.015`);
+
+          // Dynamic color based on voice strength
+          if (volumePct > 70) {
+            podiumBar.setAttribute('color', '#ef4444');
+            podiumBar.setAttribute('material', 'emissive: #ef4444; emissiveIntensity: 1.0');
+          } else if (volumePct > 40) {
+            podiumBar.setAttribute('color', '#f59e0b');
+            podiumBar.setAttribute('material', 'emissive: #f59e0b; emissiveIntensity: 0.9');
+          } else {
+            podiumBar.setAttribute('color', '#10b981');
+            podiumBar.setAttribute('material', 'emissive: #10b981; emissiveIntensity: 0.8');
+          }
+        }
+
+        if (podiumPitch) {
+          podiumPitch.setAttribute('value', pitchHz > 0 ? `PITCH: ${pitchHz} Hz` : `PITCH: -- Hz`);
+        }
+      }
+
+      resetVisualizers() {
+        const levelBar = document.querySelector('#hud-level-bar');
+        const pitchText = document.querySelector('#hud-pitch-text');
+        if (levelBar) levelBar.style.width = '0%';
+        if (pitchText) pitchText.innerText = 'Pitch: -- Hz';
+
+        const podiumBar = document.querySelector('#podium-voice-bar');
+        const podiumPitch = document.querySelector('#podium-pitch-status');
+        if (podiumBar) {
+          podiumBar.setAttribute('width', '0.01');
+          podiumBar.setAttribute('position', '-0.37 0.15 0.015');
+        }
+        if (podiumPitch) podiumPitch.setAttribute('value', 'PITCH: -- Hz');
+      }
+
+      startSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          console.log("Speech recognition not natively supported, voice meter remains active.");
+          return;
+        }
+
+        try {
+          this.recognition = new SpeechRec();
+          this.recognition.continuous = true;
+          this.recognition.interimResults = true;
+          this.recognition.lang = 'en-US';
+
+          this.recognition.onresult = (event) => {
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const text = event.results[i][0].transcript.toLowerCase();
+              console.log("Speech heard:", text);
+
+              // Check for "thank you" or "thanks"
+              if (text.includes('thank you') || text.includes('thanks') || text.includes('thankyou')) {
+                const now = Date.now();
+                if (now - this.lastThankYouTime > 6000) { // 6 second debounce
+                  this.lastThankYouTime = now;
+                  this.onThankYouDetected(text);
+                }
+              }
+            }
+          };
+
+          this.recognition.onend = () => {
+            if (this.isActive) {
+              try { this.recognition.start(); } catch(e){}
+            }
+          };
+
+          this.recognition.start();
+        } catch (err) {
+          console.warn("Speech recognition initialization error:", err);
+        }
+      }
+
+      onThankYouDetected(text) {
+        console.log("Voice Keyword Detected: 'Thank You'! Triggering crowd applause...");
+        
+        // Visual teleprompter announcement
+        const promptEl = document.querySelector('#teleprompter-text');
+        if (promptEl) {
+          promptEl.setAttribute('value', '🎤 HEARD: "Thank You!" 👏\n[CROWD ERUPTS INTO APPLAUSE & CHEERS!]');
+        }
+
+        // Trigger applause sound & crowd animations
+        triggerApplause();
+      }
+
+      updateUI(isActive) {
+        const hudMicBtn = document.querySelector('#hud-mic-btn');
+        const hudMicState = document.querySelector('#hud-mic-state');
+        const podiumMicText = document.querySelector('#podium-mic-btn-text');
+        const podiumMicBox = document.querySelector('#podium-mic-btn-box');
+        const podiumMicStatus = document.querySelector('#podium-mic-status');
+
+        if (isActive) {
+          if (hudMicBtn) {
+            hudMicBtn.innerHTML = '🎤 Mic: ACTIVE';
+            hudMicBtn.classList.add('listening');
+          }
+          if (hudMicState) {
+            hudMicState.innerHTML = '<span style="color: #10b981; font-weight: bold;">🎤 Mic: LIVE (Listening)</span>';
+          }
+          if (podiumMicText) podiumMicText.setAttribute('value', '🎤 MIC: LIVE');
+          if (podiumMicBox) podiumMicBox.setAttribute('color', '#10b981');
+          if (podiumMicStatus) podiumMicStatus.setAttribute('value', '🎤 MIC: LIVE | Say "Thank You" for Applause!');
+        } else {
+          if (hudMicBtn) {
+            hudMicBtn.innerHTML = '🎤 Enable Mic';
+            hudMicBtn.classList.remove('listening');
+          }
+          if (hudMicState) {
+            hudMicState.innerText = '🎤 Mic: Inactive';
+          }
+          if (podiumMicText) podiumMicText.setAttribute('value', '🎤 MIC: OFF');
+          if (podiumMicBox) podiumMicBox.setAttribute('color', '#475569');
+          if (podiumMicStatus) podiumMicStatus.setAttribute('value', '🎤 MIC: OFF (Click Mic Button or Press T)');
+        }
+      }
+    }
+
+    const micManager = new MicrophoneManager();
+
+    function toggleMicrophone() {
+      micManager.toggle();
+    }
+
+    // Sync UI with ambient crowd murmur
+    function updateAudioUI(isPlaying) {
+      const hudBtn = document.querySelector('#hud-murmur-btn');
+      const soundDot = document.querySelector('#sound-dot');
+      const soundText = document.querySelector('#sound-status-text');
+      const podiumMurmurText = document.querySelector('#podium-murmur-text');
+      const podiumMurmurBox = document.querySelector('#podium-murmur-box');
+
+      if (isPlaying) {
+        if (hudBtn) {
+          hudBtn.innerHTML = '🔊 Chatter: ON';
+          hudBtn.classList.add('active');
+        }
+        if (soundDot) soundDot.classList.add('active');
+        if (soundText) soundText.innerText = 'Crowd Chatter: Playing';
+        if (podiumMurmurText) podiumMurmurText.setAttribute('value', '🔊 CHATTER: ON');
+        if (podiumMurmurBox) podiumMurmurBox.setAttribute('color', '#059669');
+      } else {
+        if (hudBtn) {
+          hudBtn.innerHTML = '🔇 Chatter: OFF';
+          hudBtn.classList.remove('active');
+        }
+        if (soundDot) soundDot.classList.remove('active');
+        if (soundText) soundText.innerText = 'Crowd Chatter: Off';
+        if (podiumMurmurText) podiumMurmurText.setAttribute('value', '🔇 CHATTER: OFF');
+        if (podiumMurmurBox) podiumMurmurBox.setAttribute('color', '#475569');
+      }
+    }
+
+    function toggleCrowdMurmur() {
+      crowdAudio.toggleCrowdMurmur();
+    }
+
+    // ==========================================
+    // KEYNOTE SLIDE PRESENTATION DATA
+    // ==========================================
+    const slides = [
+      {
+        title: "ANNUAL KEYNOTE 2026\nNEXT-GEN VIRTUAL REALITY",
+        bullets: "• Live Microphone & Real-Time Voice Pitch Meter\n• Voice-Activated Crowd Applause on 'Thank You'\n• Spatial Audio & Dynamic Auditorium Acoustics",
+        notes: "Slide 1/4: Welcome!\n• Welcome to the bright modern auditorium\n• Speak into your mic – watch the voice bar\n• Say 'Thank you' to trigger audience applause!"
+      },
+      {
+        title: "THE POWER OF WEBXR\nRUNNING ON EVERY DEVICE",
+        bullets: "• Zero install required – runs directly in HTML\n• Full 6-DoF Headsets (Quest, Vive, Index)\n• Desktop WASD & Mobile Gyro support",
+        notes: "Slide 2/4: Cross-Platform WebXR\n• Explain seamless browser accessibility\n• Mention WebXR standardization\n• Discuss low latency 3D rendering"
+      },
+      {
+        title: "SPATIAL CROWD AUDIO\nIMMERSIVE AUDIENCE ACOUSTICS",
+        bullets: "• Continuous stereo crowd room chatter\n• Multi-voice applause & cheer roars\n• Real-time speech recognition integration",
+        notes: "Slide 3/4: Audio Demonstration\n• Toggle [🔊 Chatter] for room tone\n• Say 'Thank you everyone' into microphone\n• Notice crowd cheer and ovation"
+      },
+      {
+        title: "THANK YOU EVERYONE!\nQ&A SESSION NOW OPEN",
+        bullets: "• Open floor for audience questions\n• Interactive demonstrations on stage\n• Built with A-Frame & WebXR standards",
+        notes: "Slide 4/4: Conclusion & Q&A\n• Thank the organizers and audience\n• Say 'Thank you' or click [👏 Applause]\n• Invite questions from the floor"
+      }
+    ];
+
+    let currentSlideIdx = 0;
+
+    function nextSlide() {
+      currentSlideIdx = (currentSlideIdx + 1) % slides.length;
+      updateSlideDisplay();
+    }
+
+    function updateSlideDisplay() {
+      const slide = slides[currentSlideIdx];
+      
+      const titleEl = document.querySelector('#slide-title');
+      const bulletsEl = document.querySelector('#slide-bullets');
+      if (titleEl) titleEl.setAttribute('value', slide.title);
+      if (bulletsEl) bulletsEl.setAttribute('value', slide.bullets);
+
+      const notesEl = document.querySelector('#teleprompter-text');
+      if (notesEl) notesEl.setAttribute('value', slide.notes);
+    }
+
+    // ==========================================
+    // INTERACTION HANDLERS
+    // ==========================================
+    function triggerApplause() {
+      crowdAudio.playApplause(5.6);
+
+      // Animate audience members with excited cheering bobbing motion
+      const people = document.querySelectorAll('.audience-person');
+      people.forEach((p, idx) => {
+        const origY = p.getAttribute('data-orig-y') || p.object3D.position.y;
+        if (!p.hasAttribute('data-orig-y')) p.setAttribute('data-orig-y', origY);
+
+        const delay = (idx % 12) * 35;
+        setTimeout(() => {
+          p.setAttribute('animation__cheer', {
+            property: 'position',
+            dir: 'alternate',
+            dur: 180 + Math.random() * 120,
+            loop: 12,
+            to: `${p.object3D.position.x} ${parseFloat(origY) + 0.12} ${p.object3D.position.z}`,
+            easing: 'easeInOutQuad'
+          });
+        }, delay);
+      });
+
+      // Temporary prompter reaction banner if not already showing voice banner
+      const promptEl = document.querySelector('#teleprompter-text');
+      if (promptEl) {
+        promptEl.setAttribute('value', '👏 [AUDIENCE APPLAUDING & CHEERING!] 👏\n"Thank you very much everyone!"');
+        setTimeout(() => {
+          updateSlideDisplay();
+        }, 5600);
+      }
+    }
+
+    // 3 Bright Modern Lighting Modes
+    let lightMode = 0;
+    function toggleLighting() {
+      lightMode = (lightMode + 1) % 3;
+      const houseLights = document.querySelectorAll('.house-light');
+      const spotMain = document.querySelector('#spot-main');
+      const spotLeft = document.querySelector('#spot-left');
+      const spotRight = document.querySelector('#spot-right');
+      const ambientLight = document.querySelector('#ambient-light');
+      const hallFill = document.querySelector('#hall-fill');
+      const stageFill = document.querySelector('#stage-fill');
+      const cone = document.querySelector('#spotlight-cone');
+
+      if (lightMode === 0) {
+        ambientLight.setAttribute('light', 'intensity', 1.15);
+        if (hallFill) hallFill.setAttribute('light', 'intensity', 0.95);
+        if (stageFill) stageFill.setAttribute('light', 'intensity', 1.1);
+        if (spotMain) spotMain.setAttribute('light', 'intensity', 3.8);
+        if (spotLeft) spotLeft.setAttribute('light', 'intensity', 2.6);
+        if (spotRight) spotRight.setAttribute('light', 'intensity', 2.2);
+        houseLights.forEach(hl => hl.setAttribute('light', 'intensity', 1.2));
+        if (cone) cone.setAttribute('material', 'opacity', 0.14);
+      } else if (lightMode === 1) {
+        ambientLight.setAttribute('light', 'intensity', 1.5);
+        if (hallFill) hallFill.setAttribute('light', 'intensity', 1.4);
+        if (stageFill) stageFill.setAttribute('light', 'intensity', 1.5);
+        if (spotMain) spotMain.setAttribute('light', 'intensity', 3.2);
+        if (spotLeft) spotLeft.setAttribute('light', 'intensity', 2.2);
+        if (spotRight) spotRight.setAttribute('light', 'intensity', 2.2);
+        houseLights.forEach(hl => hl.setAttribute('light', 'intensity', 1.6));
+        if (cone) cone.setAttribute('material', 'opacity', 0.05);
+      } else {
+        ambientLight.setAttribute('light', 'intensity', 0.8);
+        if (hallFill) hallFill.setAttribute('light', 'intensity', 0.5);
+        if (stageFill) stageFill.setAttribute('light', 'intensity', 0.8);
+        if (spotMain) spotMain.setAttribute('light', 'intensity', 4.5);
+        if (spotLeft) spotLeft.setAttribute('light', 'intensity', 2.0);
+        if (spotRight) spotRight.setAttribute('light', 'intensity', 2.0);
+        houseLights.forEach(hl => hl.setAttribute('light', 'intensity', 0.65));
+        if (cone) cone.setAttribute('material', 'opacity', 0.22);
+      }
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.key === 'a' || e.key === 'A') {
+        triggerApplause();
+      } else if (e.key === 't' || e.key === 'T') {
+        toggleMicrophone();
+      } else if (e.key === 'm' || e.key === 'M' || e.key === 'c' || e.key === 'C') {
+        toggleCrowdMurmur();
+      } else if (e.key === 'n' || e.key === 'N') {
+        nextSlide();
+      } else if (e.key === 'l' || e.key === 'L') {
+        toggleLighting();
+      }
+    });
+
+    document.addEventListener('click', () => {
+      crowdAudio.init();
+    }, { once: true });
+
+    // ==========================================
+    // A-FRAME COMPONENT: BUILD AUDITORIUM & CROWD
+    // ==========================================
+    AFRAME.registerComponent('auditorium-builder', {
+      init: function () {
+        const sceneEl = this.el;
+        const audienceGroup = document.createElement('a-entity');
+        audienceGroup.setAttribute('id', 'audience-container');
+
+        const suitColors = [
+          '#1e293b', '#0f172a', '#3b82f6', '#2563eb',
+          '#0284c7', '#0891b2', '#0d9488',
+          '#b91c1c', '#7c3aed', '#059669',
+          '#f1f5f9', '#e2e8f0', '#ea580c', '#38bdf8'
+        ];
+
+        const skinTones = [
+          '#fbd3b7', '#f2c19e', '#dfa87a', '#c68651', '#8d5524', '#59381c'
+        ];
+
+        const hairColors = [
+          '#1c1917', '#292524', '#44403c', '#78350f', '#92400e', '#d97706', '#94a3b8'
+        ];
+
+        const numRows = 8;
+        const rowDepthSpacing = 2.6;
+        const startZ = -3.5;
+        const tierHeightStep = 0.36;
+
+        const colLayout = [
+          -7.2, -6.0, -4.8,
+          -2.6, -1.6, -0.6, 0.6, 1.6, 2.6,
+          4.8, 6.0, 7.2
+        ];
+
+        for (let r = 0; r < numRows; r++) {
+          const rowZ = startZ - (r * rowDepthSpacing);
+          const tierY = r * tierHeightStep;
+
+          const riser = document.createElement('a-box');
+          riser.setAttribute('position', `0 ${tierY / 2} ${rowZ}`);
+          riser.setAttribute('width', '18.6');
+          riser.setAttribute('height', `${tierY + 0.1}`);
+          riser.setAttribute('depth', `${rowDepthSpacing}`);
+          riser.setAttribute('color', '#334155');
+          riser.setAttribute('roughness', '0.7');
+          audienceGroup.appendChild(riser);
+
+          const stepLED = document.createElement('a-box');
+          stepLED.setAttribute('position', `0 ${tierY + 0.05} ${rowZ + (rowDepthSpacing / 2) - 0.05}`);
+          stepLED.setAttribute('width', '18.55');
+          stepLED.setAttribute('height', '0.04');
+          stepLED.setAttribute('depth', '0.06');
+          stepLED.setAttribute('color', '#38bdf8');
+          stepLED.setAttribute('material', 'emissive: #38bdf8; emissiveIntensity: 1.1; roughness: 0.2');
+          audienceGroup.appendChild(stepLED);
+
+          [-3.7, 3.7].forEach(aisleX => {
+            const stepLight = document.createElement('a-box');
+            stepLight.setAttribute('position', `${aisleX} ${tierY + 0.08} ${rowZ + (rowDepthSpacing / 2) - 0.1}`);
+            stepLight.setAttribute('width', '0.28');
+            stepLight.setAttribute('height', '0.05');
+            stepLight.setAttribute('depth', '0.12');
+            stepLight.setAttribute('color', '#ffffff');
+            stepLight.setAttribute('material', 'emissive: #38bdf8; emissiveIntensity: 1.5');
+            audienceGroup.appendChild(stepLight);
+          });
+
+          colLayout.forEach((colX, cIdx) => {
+            const isOccupied = (r * 11 + cIdx) % 7 !== 3;
+
+            const chairY = tierY + 0.05;
+            const chair = document.createElement('a-entity');
+            chair.setAttribute('position', `${colX} ${chairY} ${rowZ}`);
+
+            const seat = document.createElement('a-box');
+            seat.setAttribute('position', '0 0.4 0');
+            seat.setAttribute('width', '0.65');
+            seat.setAttribute('height', '0.12');
+            seat.setAttribute('depth', '0.6');
+            seat.setAttribute('color', '#1e3a8a');
+            seat.setAttribute('roughness', '0.6');
+            chair.appendChild(seat);
+
+            const backrest = document.createElement('a-box');
+            backrest.setAttribute('position', '0 0.85 -0.28');
+            backrest.setAttribute('rotation', '8 0 0');
+            backrest.setAttribute('width', '0.65');
+            backrest.setAttribute('height', '0.75');
+            backrest.setAttribute('depth', '0.1');
+            backrest.setAttribute('color', '#1d4ed8');
+            backrest.setAttribute('roughness', '0.6');
+            chair.appendChild(backrest);
+
+            const frame = document.createElement('a-box');
+            frame.setAttribute('position', '0 0.2 0');
+            frame.setAttribute('width', '0.58');
+            frame.setAttribute('height', '0.4');
+            frame.setAttribute('depth', '0.5');
+            frame.setAttribute('color', '#94a3b8');
+            frame.setAttribute('metalness', '0.8');
+            frame.setAttribute('roughness', '0.3');
+            chair.appendChild(frame);
+
+            const armL = document.createElement('a-box');
+            armL.setAttribute('position', '-0.33 0.62 -0.05');
+            armL.setAttribute('width', '0.07');
+            armL.setAttribute('height', '0.35');
+            armL.setAttribute('depth', '0.45');
+            armL.setAttribute('color', '#475569');
+            armL.setAttribute('metalness', '0.5');
+            chair.appendChild(armL);
+
+            const armR = document.createElement('a-box');
+            armR.setAttribute('position', '0.33 0.62 -0.05');
+            armR.setAttribute('width', '0.07');
+            armR.setAttribute('height', '0.35');
+            armR.setAttribute('depth', '0.45');
+            armR.setAttribute('color', '#475569');
+            armR.setAttribute('metalness', '0.5');
+            chair.appendChild(armR);
+
+            if (isOccupied) {
+              const person = document.createElement('a-entity');
+              person.classList.add('audience-person');
+              person.setAttribute('position', '0 0.45 0.05');
+
+              const angleToStage = Math.atan2(0 - colX, 3.0 - rowZ) * (180 / Math.PI);
+              const naturalJitter = (Math.random() - 0.5) * 5;
+              person.setAttribute('rotation', `0 ${angleToStage + naturalJitter} 0`);
+
+              const shirtCol = suitColors[Math.floor(Math.random() * suitColors.length)];
+              const skinCol = skinTones[Math.floor(Math.random() * skinTones.length)];
+              const hairCol = hairColors[Math.floor(Math.random() * hairColors.length)];
+
+              const torso = document.createElement('a-cylinder');
+              torso.setAttribute('position', '0 0.42 0');
+              torso.setAttribute('radius', '0.22');
+              torso.setAttribute('height', '0.65');
+              torso.setAttribute('color', shirtCol);
+              torso.setAttribute('roughness', '0.5');
+              person.appendChild(torso);
+
+              const lap = document.createElement('a-box');
+              lap.setAttribute('position', '0 0.15 0.22');
+              lap.setAttribute('width', '0.42');
+              lap.setAttribute('height', '0.18');
+              lap.setAttribute('depth', '0.45');
+              lap.setAttribute('color', '#334155');
+              person.appendChild(lap);
+
+              const legs = document.createElement('a-box');
+              legs.setAttribute('position', '0 -0.15 0.4');
+              legs.setAttribute('width', '0.38');
+              legs.setAttribute('height', '0.42');
+              legs.setAttribute('depth', '0.18');
+              legs.setAttribute('color', '#1e293b');
+              person.appendChild(legs);
+
+              const shoulders = document.createElement('a-cylinder');
+              shoulders.setAttribute('position', '0 0.65 0');
+              shoulders.setAttribute('rotation', '0 0 90');
+              shoulders.setAttribute('radius', '0.15');
+              shoulders.setAttribute('height', '0.48');
+              shoulders.setAttribute('color', shirtCol);
+              person.appendChild(shoulders);
+
+              const headGroup = document.createElement('a-entity');
+              headGroup.setAttribute('position', '0 0.88 0.02');
+
+              const neck = document.createElement('a-cylinder');
+              neck.setAttribute('position', '0 -0.06 0');
+              neck.setAttribute('radius', '0.08');
+              neck.setAttribute('height', '0.12');
+              neck.setAttribute('color', skinCol);
+              headGroup.appendChild(neck);
+
+              const head = document.createElement('a-sphere');
+              head.setAttribute('position', '0 0.08 0');
+              head.setAttribute('radius', '0.16');
+              head.setAttribute('color', skinCol);
+              headGroup.appendChild(head);
+
+              const hair = document.createElement('a-sphere');
+              hair.setAttribute('position', '0 0.14 -0.02');
+              hair.setAttribute('radius', '0.165');
+              hair.setAttribute('color', hairCol);
+              hair.setAttribute('roughness', '0.7');
+              headGroup.appendChild(hair);
+
+              if (Math.random() < 0.5) {
+                const animDuration = 3000 + Math.random() * 2200;
+                headGroup.setAttribute('animation', {
+                  property: 'rotation',
+                  dir: 'alternate',
+                  dur: animDuration,
+                  loop: true,
+                  to: `${(Math.random() - 0.5) * 4} ${(Math.random() - 0.5) * 8} 0`,
+                  easing: 'easeInOutSine'
+                });
+              }
+
+              person.appendChild(headGroup);
+              chair.appendChild(person);
+            }
+
+            audienceGroup.appendChild(chair);
+          });
+        }
+
+        sceneEl.appendChild(audienceGroup);
+      }
+    });
+
+    // Wire up podium interactive 3D buttons
+    AFRAME.registerComponent('podium-interact', {
+      init: function () {
+        const el = this.el;
+        el.addEventListener('click', function () {
+          const action = el.getAttribute('data-action');
+          if (action === 'applause') {
+            triggerApplause();
+          } else if (action === 'mic') {
+            toggleMicrophone();
+          } else if (action === 'murmur') {
+            toggleCrowdMurmur();
+          } else if (action === 'lighting') {
+            toggleLighting();
+          } else if (action === 'slide') {
+            nextSlide();
+          }
+        });
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <!-- HUD Overlay -->
+  <div id="hud-overlay">
+    <h2>
+      <span>Modern Stage VR</span>
+      <span class="badge">LIVE MIC & AUDIO</span>
+    </h2>
+    <p style="margin: 4px 0 6px 0; color: #cbd5e1; font-size: 12px;">
+      Stand on stage, speak into your mic, and command the audience.
+    </p>
+
+    <!-- Real-Time Voice & Pitch Level Meter -->
+    <div id="voice-meter-card">
+      <div class="voice-meter-header">
+        <span id="hud-mic-state">🎤 Mic: Inactive</span>
+        <span id="hud-pitch-text" class="pitch-badge">Pitch: -- Hz</span>
+      </div>
+      <div class="level-bar-track">
+        <div id="hud-level-bar" class="level-bar-fill"></div>
+      </div>
+      <div class="voice-hint">
+        <span>✨ Say <strong>"Thank you"</strong> for crowd applause!</span>
+      </div>
+    </div>
+
+    <ul>
+      <li><strong>Look:</strong> Drag mouse / VR headset</li>
+      <li><strong>Move:</strong> W, A, S, D / Left stick</li>
+      <li><strong>Mic:</strong> Press <kbd>T</kbd> or click button</li>
+    </ul>
+
+    <!-- Quick Audio & Control Buttons Grid -->
+    <div class="btn-group">
+      <button id="hud-mic-btn" class="btn-hud" onclick="toggleMicrophone()">🎤 Enable Mic</button>
+      <button class="btn-hud" onclick="triggerApplause()">👏 Applause</button>
+      <button id="hud-murmur-btn" class="btn-hud secondary" onclick="toggleCrowdMurmur()">🔇 Chatter: OFF</button>
+      <button class="btn-hud secondary" onclick="nextSlide()">▶ Next Slide</button>
+      <button class="btn-hud secondary" style="grid-column: span 2;" onclick="toggleLighting()">💡 Cycle Lighting</button>
+    </div>
+
+    <div class="sound-status">
+      <span id="sound-dot" class="sound-dot"></span>
+      <span id="sound-status-text">Crowd Chatter: Off (Press M to toggle)</span>
+    </div>
+  </div>
+
+  <div id="vr-prompt">
+    🥽 Click "Enter VR" at bottom right for Meta Quest / HTC Vive / Apple Vision Pro
+  </div>
+
+  <!-- A-FRAME VR SCENE -->
+  <a-scene
+    auditorium-builder
+    cursor="rayOrigin: mouse"
+    raycaster="objects: .clickable"
+    renderer="antialias: true; colorManagement: true; highRefreshRate: true; toneMapping: ACESFilmic; exposure: 1.1;"
+    background="color: #111827">
+
+    <!-- ========================================== -->
+    <!-- CAMERA RIG (Player Standing on Front Stage) -->
+    <!-- ========================================== -->
+    <a-entity id="rig" position="0 1.2 3.5">
+      <a-camera id="player-camera" position="0 1.6 0" look-controls="pointerLockEnabled: false" wasd-controls="acceleration: 15">
+        <a-entity
+          cursor="fuse: false"
+          position="0 0 -1"
+          geometry="primitive: ring; radiusInner: 0.012; radiusOuter: 0.02"
+          material="color: #38bdf8; shader: flat; opacity: 0.9; transparent: true"
+          raycaster="objects: .clickable">
+        </a-entity>
+      </a-camera>
+
+      <!-- VR Laser Controllers for Headsets -->
+      <a-entity laser-controls="hand: right" raycaster="objects: .clickable; lineColor: #38bdf8; lineOpacity: 0.85"></a-entity>
+      <a-entity laser-controls="hand: left" raycaster="objects: .clickable; lineColor: #38bdf8; lineOpacity: 0.85"></a-entity>
+    </a-entity>
+
+
+    <!-- ========================================== -->
+    <!-- HIGH-STRENGTH MODERN LIGHTING SETUP -->
+    <!-- ========================================== -->
+
+    <!-- Ambient Fill -->
+    <a-light id="ambient-light" type="ambient" color="#f8fafc" intensity="1.15"></a-light>
+
+    <!-- Aim targets -->
+    <a-entity id="podium-target" position="0 1.5 2.3"></a-entity>
+    <a-entity id="stage-center-target" position="0 1.2 3.2"></a-entity>
+    <a-entity id="hall-center-target" position="0 1.5 -10"></a-entity>
+
+    <!-- Overhead Hall Directional Fill -->
+    <a-light
+      id="hall-fill"
+      type="directional"
+      color="#f1f5f9"
+      intensity="0.95"
+      position="0 14 -10"
+      target="#hall-center-target">
+    </a-light>
+
+    <!-- Stage Overhead Directional Floodlight -->
+    <a-light
+      id="stage-fill"
+      type="directional"
+      color="#fffdfa"
+      intensity="1.1"
+      position="0 12 3"
+      target="#stage-center-target">
+    </a-light>
+
+    <!-- Main Theatrical Follow-Spotlight directly down onto Speaker & Podium -->
+    <a-light
+      id="spot-main"
+      type="spot"
+      color="#ffffff"
+      intensity="3.8"
+      angle="40"
+      penumbra="0.4"
+      distance="30"
+      position="0 8.0 0.8"
+      target="#podium-target">
+    </a-light>
+
+    <!-- Modern Key Light (Warm Clean White from Stage Left) -->
+    <a-light
+      id="spot-left"
+      type="spot"
+      color="#fff7ed"
+      intensity="2.6"
+      angle="48"
+      penumbra="0.5"
+      distance="30"
+      position="-5.5 7.5 1.5"
+      target="#podium-target">
+    </a-light>
+
+    <!-- Modern Fill Light (Cool Crisp Daylight from Stage Right) -->
+    <a-light
+      id="spot-right"
+      type="spot"
+      color="#e0f2fe"
+      intensity="2.2"
+      angle="48"
+      penumbra="0.5"
+      distance="30"
+      position="5.5 7.5 1.5"
+      target="#podium-target">
+    </a-light>
+
+    <!-- Volumetric Theatrical Spotlight Cone -->
+    <a-cone
+      id="spotlight-cone"
+      position="0 4.6 1.55"
+      rotation="32 0 0"
+      radius-bottom="2.5"
+      radius-top="0.25"
+      height="7.2"
+      material="color: #ffffff; opacity: 0.14; transparent: true; depthWrite: false; side: double;"
+      open-ended="true">
+    </a-cone>
+
+    <!-- Stage Lip Glowing LED Strip & Footlights -->
+    <a-entity position="0 1.22 0.52">
+      <a-box position="0 0 0" width="18.2" height="0.06" depth="0.08" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.4"></a-box>
+      <a-light type="point" color="#e0f2fe" intensity="0.8" distance="6" position="-6 0.15 0"></a-light>
+      <a-light type="point" color="#e0f2fe" intensity="0.9" distance="6" position="-2 0.15 0"></a-light>
+      <a-light type="point" color="#e0f2fe" intensity="0.9" distance="6" position="2 0.15 0"></a-light>
+      <a-light type="point" color="#e0f2fe" intensity="0.8" distance="6" position="6 0.15 0"></a-light>
+    </a-entity>
+
+    <!-- Auditorium House Downlights -->
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="-5.0 7.2 -5"></a-light>
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="0 7.2 -5"></a-light>
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="5.0 7.2 -5"></a-light>
+
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="-5.0 7.4 -14"></a-light>
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="0 7.4 -14"></a-light>
+    <a-light class="house-light" type="point" color="#ffffff" intensity="1.2" distance="24" position="5.0 7.4 -14"></a-light>
+
+
+    <!-- ========================================== -->
+    <!-- MODERN STAGE STRUCTURE -->
+    <!-- ========================================== -->
+
+    <!-- Polished Hardwood Stage Floor -->
+    <a-box
+      id="stage-platform"
+      position="0 0.6 4.6"
+      width="18"
+      height="1.2"
+      depth="8.2"
+      color="#3b271b"
+      roughness="0.4"
+      metalness="0.2">
+    </a-box>
+
+    <!-- Modern Dark Mahogany Front Lip Trim -->
+    <a-box position="0 0.6 0.45" width="18.2" height="1.24" depth="0.15" color="#26180f"></a-box>
+
+    <!-- Stage Wing Stairs with LED Edge Lighting -->
+    <a-entity position="-8.5 0.3 0.8">
+      <a-box width="1.2" height="0.6" depth="1.4" color="#26180f"></a-box>
+      <a-box position="0 0.31 0.68" width="1.2" height="0.04" depth="0.06" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.2"></a-box>
+    </a-entity>
+    <a-entity position="8.5 0.3 0.8">
+      <a-box width="1.2" height="0.6" depth="1.4" color="#26180f"></a-box>
+      <a-box position="0 0.31 0.68" width="1.2" height="0.04" depth="0.06" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.2"></a-box>
+    </a-entity>
+
+    <!-- Modern Proscenium Arch Framing the Stage -->
+    <a-box position="-9.2 4.2 0.5" width="0.8" height="8.4" depth="0.8" color="#334155" roughness="0.6"></a-box>
+    <a-box position="-9.2 4.2 0.55" width="0.1" height="8.4" depth="0.8" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.2"></a-box>
+
+    <a-box position="9.2 4.2 0.5" width="0.8" height="8.4" depth="0.8" color="#334155" roughness="0.6"></a-box>
+    <a-box position="9.2 4.2 0.55" width="0.1" height="8.4" depth="0.8" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.2"></a-box>
+
+    <!-- Top Proscenium Header Beam with Illuminated Accent Line -->
+    <a-box position="0 7.8 0.5" width="19.2" height="1.2" depth="0.8" color="#1e293b"></a-box>
+    <a-box position="0 7.22 0.55" width="18.8" height="0.08" depth="0.82" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.2"></a-box>
+
+    <!-- Modern Red Velvet Side Stage Drapes -->
+    <a-entity position="-8.4 4.5 0.9">
+      <a-cylinder position="0 0 0" radius="0.45" height="6.6" color="#881337" roughness="0.7"></a-cylinder>
+      <a-cylinder position="0.4 0 0.1" radius="0.35" height="6.6" color="#701a2d" roughness="0.7"></a-cylinder>
+      <a-cylinder position="0.8 0 0" radius="0.3" height="6.6" color="#9f1239" roughness="0.7"></a-cylinder>
+    </a-entity>
+    <a-entity position="8.4 4.5 0.9">
+      <a-cylinder position="0 0 0" radius="0.45" height="6.6" color="#881337" roughness="0.7"></a-cylinder>
+      <a-cylinder position="-0.4 0 0.1" radius="0.35" height="6.6" color="#701a2d" roughness="0.7"></a-cylinder>
+      <a-cylinder position="-0.8 0 0" radius="0.3" height="6.6" color="#9f1239" roughness="0.7"></a-cylinder>
+    </a-entity>
+
+    <!-- Stage Backdrop Wall -->
+    <a-plane position="0 4.8 8.65" rotation="0 180 0" width="18" height="7.2" color="#1e293b" roughness="0.8"></a-plane>
+
+    <!-- Giant Modern 4K Keynote Presentation Screen -->
+    <a-entity position="0 5.2 8.5" rotation="0 180 0">
+      <a-box position="0 0 -0.05" width="10.5" height="4.9" depth="0.1" color="#0284c7" material="emissive: #0284c7; emissiveIntensity: 0.5"></a-box>
+      <a-plane position="0 0 0.02" width="10.2" height="4.6" color="#090d16">
+        <a-text
+          id="slide-title"
+          value="ANNUAL KEYNOTE 2026\nNEXT-GEN VIRTUAL REALITY"
+          position="0 1.2 0.05"
+          align="center"
+          width="9.5"
+          color="#38bdf8"
+          font="roboto">
+        </a-text>
+        <a-text
+          id="slide-bullets"
+          value="• Live Microphone & Real-Time Voice Pitch Meter\n• Voice-Activated Crowd Applause on 'Thank You'\n• Spatial Audio & Dynamic Auditorium Acoustics"
+          position="-4.0 -0.2 0.05"
+          align="left"
+          width="7.2"
+          color="#f8fafc"
+          font="roboto">
+        </a-text>
+        <a-plane position="0 0.55 0.04" width="8.4" height="0.05" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.0"></a-plane>
+      </a-plane>
+    </a-entity>
+
+    <!-- Sleek Stage Wedge Foldback Monitors -->
+    <a-entity position="-2.2 1.25 1.5" rotation="-30 180 0">
+      <a-box width="0.7" height="0.35" depth="0.45" color="#1e293b"></a-box>
+      <a-circle position="0 0 0.23" radius="0.12" color="#0f172a"></a-circle>
+    </a-entity>
+    <a-entity position="2.2 1.25 1.5" rotation="-30 180 0">
+      <a-box width="0.7" height="0.35" depth="0.45" color="#1e293b"></a-box>
+      <a-circle position="0 0 0.23" radius="0.12" color="#0f172a"></a-circle>
+    </a-entity>
+
+
+    <!-- ========================================== -->
+    <!-- MODERN SPEAKER'S PODIUM / LECTERN -->
+    <!-- ========================================== -->
+    <a-entity id="podium" position="0 1.2 2.3">
+      <!-- Modern Brushed Metal Base -->
+      <a-box position="0 0.05 0" width="0.95" height="0.1" depth="0.7" color="#334155" metalness="0.8" roughness="0.3"></a-box>
+
+      <!-- Sleek Modern Column with Cyan Glowing Channel -->
+      <a-box position="0 0.6 0" width="0.75" height="1.0" depth="0.55" color="#1e293b" roughness="0.5"></a-box>
+      <a-box position="0 0.6 0.28" width="0.65" height="0.9" depth="0.02" color="#0f172a"></a-box>
+      <a-box position="0 0.6 0.29" width="0.04" height="0.9" depth="0.02" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.5"></a-box>
+
+      <!-- Podium Top Slanted Desk -->
+      <a-box position="0 1.15 -0.02" rotation="20 0 0" width="0.95" height="0.08" depth="0.62" color="#0f172a"></a-box>
+
+      <!-- Dual Chrome Microphones -->
+      <a-cylinder position="-0.22 1.35 0.05" rotation="-20 -25 0" radius="0.008" height="0.32" color="#f1f5f9" metalness="0.95"></a-cylinder>
+      <a-sphere position="-0.27 1.48 0.12" radius="0.022" color="#1e293b"></a-sphere>
+
+      <a-cylinder position="0.22 1.35 0.05" rotation="-20 25 0" radius="0.008" height="0.32" color="#f1f5f9" metalness="0.95"></a-cylinder>
+      <a-sphere position="0.27 1.48 0.12" radius="0.022" color="#1e293b"></a-sphere>
+
+      <!-- Bright Teleprompter Tablet Screen with Real-Time 3D Voice Bar & Controls -->
+      <a-plane position="0 1.21 0.05" rotation="-70 0 0" width="0.84" height="0.5" color="#090d16">
+        
+        <!-- 3D REAL-TIME VOICE PITCH & LEVEL BAR (Right on podium in VR!) -->
+        <a-entity position="0 0.185 0.01">
+          <!-- Status Header -->
+          <a-text
+            id="podium-mic-status"
+            value="🎤 MIC: OFF (Click Mic Button or Press T)"
+            position="-0.38 0.03 0"
+            width="0.75"
+            color="#94a3b8"
+            font="roboto">
+          </a-text>
+          
+          <a-text
+            id="podium-pitch-status"
+            value="PITCH: -- Hz"
+            align="right"
+            position="0.38 0.03 0"
+            width="0.75"
+            color="#38bdf8"
+            font="roboto">
+          </a-text>
+
+          <!-- Voice Level Meter Background Track -->
+          <a-plane position="0 0 0.005" width="0.76" height="0.022" color="#1e293b"></a-plane>
+          
+          <!-- Dynamic Animated Level Bar Fill -->
+          <a-plane
+            id="podium-voice-bar"
+            position="-0.37 0 0.01"
+            width="0.01"
+            height="0.02"
+            color="#10b981"
+            material="emissive: #10b981; emissiveIntensity: 0.8">
+          </a-plane>
+        </a-entity>
+
+        <!-- Live Speech Teleprompter Notes -->
+        <a-text
+          id="teleprompter-text"
+          value="Slide 1/4: Welcome!\n• Welcome to the bright modern auditorium\n• Speak into your mic – watch the voice bar\n• Say 'Thank you' to trigger audience applause!"
+          position="-0.38 0.14 0.01"
+          width="0.76"
+          color="#38bdf8"
+          font="roboto"
+          baseline="top">
+        </a-text>
+
+        <!-- 3D Interactive Controls Grid -->
+        <!-- Row 1: MIC TOGGLE | APPLAUSE | CHATTER TOGGLE -->
+        <a-entity position="0 -0.07 0.02">
+          <!-- Button 1: Mic Toggle -->
+          <a-entity
+            class="clickable"
+            podium-interact
+            data-action="mic"
+            position="-0.26 0 0">
+            <a-box id="podium-mic-btn-box" width="0.23" height="0.065" depth="0.02" color="#475569" material="emissive: #475569; emissiveIntensity: 0.3"></a-box>
+            <a-text id="podium-mic-btn-text" value="🎤 MIC: OFF" align="center" position="0 0 0.015" width="0.55" color="#ffffff"></a-text>
+          </a-entity>
+
+          <!-- Button 2: Manual Applause -->
+          <a-entity
+            class="clickable"
+            podium-interact
+            data-action="applause"
+            position="0 0 0">
+            <a-box width="0.23" height="0.065" depth="0.02" color="#0284c7" material="emissive: #0284c7; emissiveIntensity: 0.4"></a-box>
+            <a-text value="👏 APPLAUSE" align="center" position="0 0 0.015" width="0.55" color="#ffffff"></a-text>
+          </a-entity>
+
+          <!-- Button 3: Crowd Murmur Toggle -->
+          <a-entity
+            class="clickable"
+            podium-interact
+            data-action="murmur"
+            position="0.26 0 0">
+            <a-box id="podium-murmur-box" width="0.23" height="0.065" depth="0.02" color="#475569" material="emissive: #475569; emissiveIntensity: 0.3"></a-box>
+            <a-text id="podium-murmur-text" value="🔇 CHATTER" align="center" position="0 0 0.015" width="0.55" color="#ffffff"></a-text>
+          </a-entity>
+        </a-entity>
+
+        <!-- Row 2: NEXT SLIDE | LIGHTING -->
+        <a-entity position="0 -0.16 0.02">
+          <!-- Button 4: Next Slide -->
+          <a-entity
+            class="clickable"
+            podium-interact
+            data-action="slide"
+            position="-0.18 0 0">
+            <a-box width="0.34" height="0.065" depth="0.02" color="#059669" material="emissive: #059669; emissiveIntensity: 0.4"></a-box>
+            <a-text value="▶ NEXT SLIDE" align="center" position="0 0 0.015" width="0.65" color="#ffffff"></a-text>
+          </a-entity>
+
+          <!-- Button 5: Cycle Lighting -->
+          <a-entity
+            class="clickable"
+            podium-interact
+            data-action="lighting"
+            position="0.18 0 0">
+            <a-box width="0.34" height="0.065" depth="0.02" color="#d97706" material="emissive: #d97706; emissiveIntensity: 0.4"></a-box>
+            <a-text value="💡 LIGHTING" align="center" position="0 0 0.015" width="0.65" color="#ffffff"></a-text>
+          </a-entity>
+        </a-entity>
+
+      </a-plane>
+    </a-entity>
+
+
+    <!-- ========================================== -->
+    <!-- BRIGHT MODERN AUDITORIUM ARCHITECTURE -->
+    <!-- ========================================== -->
+
+    <!-- Modern Dark Parquet Floor -->
+    <a-plane position="0 0 -12" rotation="-90 0 0" width="20" height="26" color="#1e2532" roughness="0.8"></a-plane>
+
+    <!-- Side Walls: Scandinavian Oak Panels & Vertical LED Bars -->
+    <!-- Left Wall -->
+    <a-entity position="-9.8 4 -10" rotation="0 90 0">
+      <a-plane width="26" height="8.5" color="#283344" roughness="0.7"></a-plane>
+      
+      <a-box position="-8 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="-4 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="0 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="4 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="8 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+
+      <!-- Vertical LED Bars -->
+      <a-box position="-6 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="-2 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="2 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="6 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+
+      <!-- Wall Wash Sconces -->
+      <a-box position="-4 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+      <a-box position="0 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+      <a-box position="4 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+    </a-entity>
+
+    <!-- Right Wall -->
+    <a-entity position="9.8 4 -10" rotation="0 -90 0">
+      <a-plane width="26" height="8.5" color="#283344" roughness="0.7"></a-plane>
+
+      <a-box position="-8 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="-4 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="0 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="4 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+      <a-box position="8 0 0.08" width="2.4" height="7" depth="0.1" color="#c29362" roughness="0.6"></a-box>
+
+      <!-- Vertical LED Bars -->
+      <a-box position="-6 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="-2 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="2 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+      <a-box position="6 0 0.12" width="0.08" height="6.6" depth="0.04" color="#38bdf8" material="emissive: #38bdf8; emissiveIntensity: 1.6"></a-box>
+
+      <!-- Wall Wash Sconces -->
+      <a-box position="-4 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+      <a-box position="0 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+      <a-box position="4 1.4 0.2" width="0.3" height="0.5" depth="0.12" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.0"></a-box>
+    </a-entity>
+
+    <!-- Rear Auditorium Wall with Exit Doors and Signs -->
+    <a-entity position="0 4.5 -23">
+      <a-plane width="20" height="9" color="#1e293b" roughness="0.8"></a-plane>
+
+      <!-- Left Exit Door -->
+      <a-entity position="-5 -1.5 0.05">
+        <a-box width="2.2" height="3.2" depth="0.08" color="#334155"></a-box>
+        <a-box position="0 1.9 0.08" width="0.8" height="0.3" depth="0.05" color="#10b981" material="emissive: #10b981; emissiveIntensity: 1.2">
+          <a-text value="EXIT" align="center" position="0 0 0.04" width="2.4" color="#ffffff"></a-text>
+        </a-box>
+      </a-entity>
+
+      <!-- Right Exit Door -->
+      <a-entity position="5 -1.5 0.05">
+        <a-box width="2.2" height="3.2" depth="0.08" color="#334155"></a-box>
+        <a-box position="0 1.9 0.08" width="0.8" height="0.3" depth="0.05" color="#10b981" material="emissive: #10b981; emissiveIntensity: 1.2">
+          <a-text value="EXIT" align="center" position="0 0 0.04" width="2.4" color="#ffffff"></a-text>
+        </a-box>
+      </a-entity>
+
+      <!-- Sound & Light Control Booth Window -->
+      <a-box position="0 1.8 0.05" width="4.5" height="1.8" depth="0.1" color="#0f172a"></a-box>
+      <a-plane position="0 1.8 0.11" width="4.3" height="1.6" color="#38bdf8" opacity="0.4" transparent="true"></a-plane>
+    </a-entity>
+
+    <!-- Modern High Ceiling with Recessed LED Light Channels -->
+    <a-plane position="0 8.2 -7" rotation="90 0 0" width="20" height="32" color="#1e2530" roughness="0.8"></a-plane>
+
+    <!-- Linear Modern LED Ceiling Channels -->
+    <a-box position="-5.2 8.15 -7" width="0.35" height="0.08" depth="28" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+    <a-box position="0 8.15 -7" width="0.45" height="0.08" depth="28" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 2.0"></a-box>
+    <a-box position="5.2 8.15 -7" width="0.35" height="0.08" depth="28" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+
+    <!-- Recessed High-Output LED Diffuser Panels Above Audience -->
+    <a-box position="-5.0 8.1 -5" width="1.4" height="0.04" depth="1.4" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+    <a-box position="0 8.1 -5" width="1.6" height="0.04" depth="1.6" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 2.0"></a-box>
+    <a-box position="5.0 8.1 -5" width="1.4" height="0.04" depth="1.4" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+
+    <a-box position="-5.0 8.1 -14" width="1.4" height="0.04" depth="1.4" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+    <a-box position="0 8.1 -14" width="1.6" height="0.04" depth="1.6" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 2.0"></a-box>
+    <a-box position="5.0 8.1 -14" width="1.4" height="0.04" depth="1.4" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1.8"></a-box>
+
+    <!-- Modern Stage Lighting Truss (Overhead) -->
+    <a-entity position="0 7.4 1.2">
+      <a-box width="18" height="0.18" depth="0.18" color="#475569" metalness="0.7"></a-box>
+      <a-box width="18" height="0.18" depth="0.18" position="0 -0.4 0.4" color="#475569" metalness="0.7"></a-box>
+      <a-cylinder position="-6 -0.5 0.2" rotation="45 30 0" radius="0.18" height="0.45" color="#1e293b" material="metalness: 0.6"></a-cylinder>
+      <a-cylinder position="-2 -0.5 0.2" rotation="40 10 0" radius="0.18" height="0.45" color="#1e293b" material="metalness: 0.6"></a-cylinder>
+      <a-cylinder position="0 -0.5 0.2" rotation="35 0 0" radius="0.24" height="0.55" color="#1e293b" material="metalness: 0.6"></a-cylinder>
+      <a-cylinder position="2 -0.5 0.2" rotation="40 -10 0" radius="0.18" height="0.45" color="#1e293b" material="metalness: 0.6"></a-cylinder>
+      <a-cylinder position="6 -0.5 0.2" rotation="45 -30 0" radius="0.18" height="0.45" color="#1e293b" material="metalness: 0.6"></a-cylinder>
+    </a-entity>
+
+    <!-- Center Truss -->
+    <a-entity position="0 7.5 -8">
+      <a-box width="18" height="0.15" depth="0.15" color="#475569" metalness="0.7"></a-box>
+      <a-cylinder position="-4.5 -0.25 0" radius="0.14" height="0.25" color="#1e293b"></a-cylinder>
+      <a-cylinder position="4.5 -0.25 0" radius="0.14" height="0.25" color="#1e293b"></a-cylinder>
+    </a-entity>
+
+    <!-- Rear Truss -->
+    <a-entity position="0 7.5 -16">
+      <a-box width="18" height="0.15" depth="0.15" color="#475569" metalness="0.7"></a-box>
+      <a-cylinder position="-4.5 -0.25 0" radius="0.14" height="0.25" color="#1e293b"></a-cylinder>
+      <a-cylinder position="4.5 -0.25 0" radius="0.14" height="0.25" color="#1e293b"></a-cylinder>
+    </a-entity>
+
+  </a-scene>
+</body>
+
+</html>
